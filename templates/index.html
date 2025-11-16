@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block content %}
+<h4>All Expenses</h4>
+<table class="table table-hover">
+  <thead>
+    <tr><th>Date</th><th>Category</th><th>Description</th><th class="text-end">Amount</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for e in expenses %}
+    <tr>
+      <td>{{ e.date.strftime('%Y-%m-%d') }}</td>
+      <td>
+        {{ e.category }}
+        {% if e.paid_for_other %}
+          <div><small class="text-muted">for: {{ e.payee_name }}</small></div>
+        {% endif %}
+      </td>
+      <td>{{ e.description or '-' }}</td>
+      <td class="text-end">₹{{ '%.2f' % e.amount }}</td>
+      <td class="text-end">
+        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_expense', expense_id=e.id) }}">Edit</a>
+        <form style="display:inline" method="post" action="{{ url_for('delete_expense', expense_id=e.id) }}" onsubmit="return confirm('Delete this entry?');">
+          <button class="btn btn-sm btn-outline-danger">×</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5" class="text-center">No expenses yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

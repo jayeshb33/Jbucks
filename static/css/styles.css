@@ -1,0 +1,80 @@
+/* Google Inter font used in base.html */
+
+/* Basic page */
+body {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: #f8fafc;
+  color: #1f2937;
+}
+
+/* Navbar */
+.navbar-brand {
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+/* Tiles */
+.option-tile {
+  border-radius: 12px;
+  padding: 22px;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+  box-shadow: 0 6px 20px rgba(15,23,42,0.06);
+  border: 1px solid rgba(15,23,42,0.03);
+}
+.option-tile:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 14px 30px rgba(15,23,42,0.08);
+}
+
+/* Category boxes inside tile */
+.category-box {
+  border-radius: 10px;
+  padding: 8px 14px;
+  text-align: center;
+  background: #ffffff;
+  border: 1px solid rgba(15,23,42,0.06);
+  box-shadow: 0 6px 12px rgba(15,23,42,0.03);
+  transition: transform .12s ease, background .12s;
+  font-weight: 600;
+}
+.category-box:hover {
+  transform: translateY(-4px);
+  background: #f1f5f9;
+}
+
+/* Cards for totals */
+.card.p-3 {
+  border-radius: 10px;
+  box-shadow: none;
+  background: #ffffff;
+  border: 1px solid rgba(15,23,42,0.04);
+}
+
+/* Small "for: name" badge */
+.payee-badge {
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+/* Table tweaks */
+.table-hover tbody tr:hover {
+  background: #fbfdff;
+}
+
+/* Floating action button (optional) */
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 28px;
+  z-index: 1100;
+  border-radius: 999px;
+  padding: 12px 16px;
+  box-shadow: 0 10px 30px rgba(3,7,18,0.12);
+}
+
+/* Responsive: reduce large paddings on small screens */
+@media (max-width: 576px) {
+  .option-tile { padding: 14px; }
+  .category-box { padding: 8px 10px; font-size: 0.9rem; }
+}
