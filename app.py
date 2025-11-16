@@ -44,18 +44,6 @@ with app.app_context():
     db.create_all()
 
 
-# ---------------- Temporary helper to init DB (use once if needed) ----------------
-# Note: remove this route after using it once for security.
-@app.route("/initdb")
-def initdb():
-    try:
-        with app.app_context():
-            db.create_all()
-        return "Database tables created successfully!"
-    except Exception as e:
-        return f"Error creating tables: {e}", 500
-
-
 # ---------------- Routes ----------------
 @app.route("/")
 def home():
