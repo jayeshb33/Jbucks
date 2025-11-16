@@ -1,11 +1,23 @@
+import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date
 
+# ---------------- App setup ----------------
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///jbucks.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.secret_key = 'dev-secret-key'  # change for production
+
+# Use DATABASE_URL if provided (Render/Heroku), otherwise use local sqlite
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if DATABASE_URL:
+    # Convert postgres:// to postgresql:// for SQLAlchemy compatibility if needed
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+else:
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///jbucks.db"
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.secret_key = os.environ.get("JBucks_SECRET", "dev-secret-key")  # change in production
 
 db = SQLAlchemy(app)
 
@@ -26,21 +38,19 @@ class Expense(db.Model):
     payee_name = db.Column(db.String(120))
 
 
-# ---------------- Helpers ----------------
-def create_tables():
-    """Create DB tables inside an application context."""
-    with app.app_context():
-        db.create_all()
+# ---------------- Ensure tables exist ----------------
+# This runs when the module is imported (works with gunicorn on Render).
+with app.app_context():
+    db.create_all()
 
 
 # ---------------- Routes ----------------
-@app.route('/')
+@app.route("/")
 def home():
     payees = Payee.query.order_by(Payee.name).all()
 
     today_date = date.today()
     start = today_date.replace(day=1)
-    # compute first day of next month
     if today_date.month == 12:
         end = today_date.replace(year=today_date.year + 1, month=1, day=1)
     else:
@@ -51,14 +61,13 @@ def home():
     you_total = sum(e.amount for e in expenses if not e.paid_for_other)
     others_total = sum(e.amount for e in expenses if e.paid_for_other)
 
-    # breakdown for "You" by category
     cat_totals = {}
     for e in expenses:
         if not e.paid_for_other:
             cat_totals[e.category] = cat_totals.get(e.category, 0) + e.amount
 
     return render_template(
-        'home.html',
+        "home.html",
         payees=payees,
         you_total=you_total,
         others_total=others_total,
@@ -67,27 +76,26 @@ def home():
     )
 
 
-@app.route('/expenses')
+@app.route("/expenses")
 def index():
     expenses = Expense.query.order_by(Expense.date.desc()).all()
-    return render_template('index.html', expenses=expenses)
+    return render_template("index.html", expenses=expenses)
 
 
-@app.route('/add', methods=['GET', 'POST'])
+@app.route("/add", methods=["GET", "POST"])
 def add_expense():
-    if request.method == 'POST':
+    if request.method == "POST":
         try:
-            date_str = request.form.get('date') or date.today().isoformat()
+            date_str = request.form.get("date") or date.today().isoformat()
             d = datetime.fromisoformat(date_str).date()
 
-            category = request.form.get('category') or 'Other'
-            amount = float(request.form['amount'])
-            description = request.form.get('description') or ''
+            category = request.form.get("category") or "Other"
+            amount = float(request.form["amount"])
+            description = request.form.get("description") or ""
 
-            paid_for_other = request.form.get('paid_for_other') == '1'
-            payee_name = request.form.get('payee_name') or None
+            paid_for_other = request.form.get("paid_for_other") == "1"
+            payee_name = request.form.get("payee_name") or None
 
-            # if a payee name was supplied and doesn't exist yet — add it
             if payee_name:
                 payee_name = payee_name.strip()
                 if payee_name and not Payee.query.filter_by(name=payee_name).first():
@@ -103,19 +111,18 @@ def add_expense():
             )
             db.session.add(e)
             db.session.commit()
-            flash('Expense saved', 'success')
-            return redirect(url_for('index'))
+            flash("Expense saved", "success")
+            return redirect(url_for("index"))
 
         except Exception as ex:
-            flash('Error: ' + str(ex), 'danger')
-            return redirect(url_for('home'))
+            flash("Error: " + str(ex), "danger")
+            return redirect(url_for("home"))
 
-    # GET: prefill values if provided via query string
-    category = request.args.get('category', '')
-    paid_for_other = request.args.get('paid_for_other', '0')
-    payee_name = request.args.get('payee_name', '')
+    category = request.args.get("category", "")
+    paid_for_other = request.args.get("paid_for_other", "0")
+    payee_name = request.args.get("payee_name", "")
     return render_template(
-        'add.html',
+        "add.html",
         today=date.today().isoformat(),
         category=category,
         paid_for_other=paid_for_other,
@@ -123,43 +130,44 @@ def add_expense():
     )
 
 
-@app.route('/edit/<int:expense_id>', methods=['GET', 'POST'])
+@app.route("/edit/<int:expense_id>", methods=["GET", "POST"])
 def edit_expense(expense_id):
     e = Expense.query.get_or_404(expense_id)
 
-    if request.method == 'POST':
+    if request.method == "POST":
         try:
-            e.date = datetime.fromisoformat(request.form['date']).date()
-            e.category = request.form['category']
-            e.amount = float(request.form['amount'])
-            e.description = request.form.get('description')
-            e.paid_for_other = request.form.get('paid_for_other') == '1'
-            e.payee_name = request.form.get('payee_name') or None
+            e.date = datetime.fromisoformat(request.form["date"]).date()
+            e.category = request.form["category"]
+            e.amount = float(request.form["amount"])
+            e.description = request.form.get("description")
+            e.paid_for_other = request.form.get("paid_for_other") == "1"
+            e.payee_name = request.form.get("payee_name") or None
 
             if e.payee_name and not Payee.query.filter_by(name=e.payee_name).first():
                 db.session.add(Payee(name=e.payee_name))
 
             db.session.commit()
-            flash('Updated successfully', 'success')
-            return redirect(url_for('index'))
+            flash("Updated successfully", "success")
+            return redirect(url_for("index"))
 
         except Exception as ex:
-            flash('Error updating: ' + str(ex), 'danger')
-            return redirect(url_for('index'))
+            flash("Error updating: " + str(ex), "danger")
+            return redirect(url_for("index"))
 
-    return render_template('edit.html', e=e)
+    return render_template("edit.html", e=e)
 
 
-@app.route('/delete/<int:expense_id>', methods=['POST'])
+@app.route("/delete/<int:expense_id>", methods=["POST"])
 def delete_expense(expense_id):
     e = Expense.query.get_or_404(expense_id)
     db.session.delete(e)
     db.session.commit()
-    flash('Deleted', 'info')
-    return redirect(url_for('index'))
+    flash("Deleted", "info")
+    return redirect(url_for("index"))
 
 
-# ----------------- Run -----------------
-if __name__ == '__main__':
-    create_tables()  # make sure DB tables exist
+# ----------------- Run (local dev) -----------------
+if __name__ == "__main__":
+    # When running locally, start Flask's dev server.
+    # In production Render uses `gunicorn app:app` (recommended).
     app.run(debug=True)
