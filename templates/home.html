@@ -36,6 +36,13 @@
           <h3 class="mb-1">Paid for Others</h3>
           <p class="text-muted mb-2">Record payments you made for someone else</p>
           <small class="text-muted">Tap to choose or add a person</small>
+
+          <!-- NEW: View by-person summary button -->
+          <div class="mt-3">
+            <a href="{{ url_for('payees') }}" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-people-fill me-1"></i> View Paid-for-Others Summary
+            </a>
+          </div>
         </div>
         <div class="text-muted">
           <i class="bi bi-people-fill" style="font-size:34px"></i>
@@ -51,12 +58,23 @@
     <div class="card p-3">
       <h6>This month — You</h6>
       <h4>₹{{ '%.2f'|format(you_total) }}</h4>
+      {% if cat_totals %}
+      <small class="text-muted">Breakdown:</small>
+      <div class="mt-2">
+        {% for k, v in cat_totals.items() %}
+          <span class="badge bg-light text-dark me-1">{{ k }}: ₹{{ '%.2f'|format(v) }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
   </div>
   <div class="col-md-6">
     <div class="card p-3">
       <h6>This month — Paid for Others</h6>
       <h4>₹{{ '%.2f'|format(others_total) }}</h4>
+      <div class="mt-2">
+        <a href="{{ url_for('payees') }}" class="btn btn-sm btn-outline-primary">See per-person totals</a>
+      </div>
     </div>
   </div>
 </div>

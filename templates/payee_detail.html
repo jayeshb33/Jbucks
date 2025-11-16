@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+  <a href="{{ url_for('payees') }}" class="btn btn-sm btn-outline-primary mb-3">&larr; Back to payees</a>
+  <h3>Payments for: {{ payee }}</h3>
+  <p class="text-muted">This month total: <strong>₹{{ '%.2f'|format(total) }}</strong></p>
+
+  {% if expenses %}
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Description</th>
+          <th class="text-end">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in expenses %}
+        <tr>
+          <td>{{ e.date.isoformat() }}</td>
+          <td>{{ e.category }}</td>
+          <td>{{ e.description or '-' }}</td>
+          <td class="text-end">₹{{ '%.2f'|format(e.amount) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="alert alert-info">No payments found for {{ payee }} this month.</div>
+  {% endif %}
+</div>
+{% endblock %}
