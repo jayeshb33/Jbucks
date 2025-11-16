@@ -6,18 +6,18 @@ from datetime import datetime, date
 # ---------------- App setup ----------------
 app = Flask(__name__)
 
-# Use DATABASE_URL if provided (Render/Heroku), otherwise use local sqlite
+# Use DATABASE_URL (Render) if present, else local sqlite
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL:
-    # Convert postgres:// to postgresql:// for SQLAlchemy compatibility if needed
     if DATABASE_URL.startswith("postgres://"):
+        # SQLAlchemy needs postgresql://
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 else:
     app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///jbucks.db"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.secret_key = os.environ.get("JBucks_SECRET", "dev-secret-key")  # change in production
+app.secret_key = os.environ.get("JBucks_SECRET", "dev-secret-key")
 
 db = SQLAlchemy(app)
 
@@ -39,9 +39,21 @@ class Expense(db.Model):
 
 
 # ---------------- Ensure tables exist ----------------
-# This runs when the module is imported (works with gunicorn on Render).
+# Run create_all() at import-time so tables exist under gunicorn on Render.
 with app.app_context():
     db.create_all()
+
+
+# ---------------- Temporary helper to init DB (use once if needed) ----------------
+# Note: remove this route after using it once for security.
+@app.route("/initdb")
+def initdb():
+    try:
+        with app.app_context():
+            db.create_all()
+        return "Database tables created successfully!"
+    except Exception as e:
+        return f"Error creating tables: {e}", 500
 
 
 # ---------------- Routes ----------------
@@ -168,6 +180,5 @@ def delete_expense(expense_id):
 
 # ----------------- Run (local dev) -----------------
 if __name__ == "__main__":
-    # When running locally, start Flask's dev server.
-    # In production Render uses `gunicorn app:app` (recommended).
+    # For local development only.
     app.run(debug=True)
