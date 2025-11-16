@@ -2,15 +2,16 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date
+from sqlalchemy import func
+from urllib.parse import quote_plus, unquote_plus
 
 # ---------------- App setup ----------------
 app = Flask(__name__)
 
-# Use DATABASE_URL (Render) if present, else local sqlite
+# Use DATABASE_URL (Render) if present, else sqlite
 DATABASE_URL = os.environ.get("DATABASE_URL")
 if DATABASE_URL:
     if DATABASE_URL.startswith("postgres://"):
-        # SQLAlchemy needs postgresql://
         DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 else:
@@ -39,22 +40,22 @@ class Expense(db.Model):
 
 
 # ---------------- Ensure tables exist ----------------
-# Run create_all() at import-time so tables exist under gunicorn on Render.
 with app.app_context():
     db.create_all()
 
 
-# ---------------- Routes ----------------
+# ---------------- Dashboard Route ----------------
 @app.route("/")
 def home():
     payees = Payee.query.order_by(Payee.name).all()
 
     today_date = date.today()
     start = today_date.replace(day=1)
-    if today_date.month == 12:
-        end = today_date.replace(year=today_date.year + 1, month=1, day=1)
-    else:
-        end = today_date.replace(month=today_date.month + 1, day=1)
+    end = (
+        date(today_date.year + 1, 1, 1)
+        if today_date.month == 12
+        else date(today_date.year, today_date.month + 1, 1)
+    )
 
     expenses = Expense.query.filter(Expense.date >= start, Expense.date < end).all()
 
@@ -76,12 +77,74 @@ def home():
     )
 
 
+# ---------------- Payees Summary Route ----------------
+@app.route("/payees")
+def payees():
+    today_date = date.today()
+    start = today_date.replace(day=1)
+    end = (
+        date(today_date.year + 1, 1, 1)
+        if today_date.month == 12
+        else date(today_date.year, today_date.month + 1, 1)
+    )
+
+    rows = (
+        db.session.query(Expense.payee_name, func.sum(Expense.amount).label("total"))
+        .filter(
+            Expense.paid_for_other == True,
+            Expense.payee_name.isnot(None),
+            Expense.date >= start,
+            Expense.date < end,
+        )
+        .group_by(Expense.payee_name)
+        .order_by(func.sum(Expense.amount).desc())
+        .all()
+    )
+
+    rows = [(name, total or 0) for name, total in rows if name]
+
+    return render_template("payees.html", rows=rows)
+
+
+# ---------------- Payee Detail Route ----------------
+@app.route("/payee/<path:payee_name>")
+def payee_detail(payee_name):
+    name = unquote_plus(payee_name)
+
+    today_date = date.today()
+    start = today_date.replace(day=1)
+    end = (
+        date(today_date.year + 1, 1, 1)
+        if today_date.month == 12
+        else date(today_date.year, today_date.month + 1, 1)
+    )
+
+    expenses = (
+        Expense.query.filter(
+            Expense.paid_for_other == True,
+            Expense.payee_name == name,
+            Expense.date >= start,
+            Expense.date < end,
+        )
+        .order_by(Expense.date.desc())
+        .all()
+    )
+
+    total = sum(e.amount for e in expenses)
+
+    return render_template(
+        "payee_detail.html", payee=name, expenses=expenses, total=total
+    )
+
+
+# ---------------- View All Expenses ----------------
 @app.route("/expenses")
 def index():
     expenses = Expense.query.order_by(Expense.date.desc()).all()
     return render_template("index.html", expenses=expenses)
 
 
+# ---------------- Add Expense ----------------
 @app.route("/add", methods=["GET", "POST"])
 def add_expense():
     if request.method == "POST":
@@ -111,6 +174,7 @@ def add_expense():
             )
             db.session.add(e)
             db.session.commit()
+
             flash("Expense saved", "success")
             return redirect(url_for("index"))
 
@@ -118,18 +182,16 @@ def add_expense():
             flash("Error: " + str(ex), "danger")
             return redirect(url_for("home"))
 
-    category = request.args.get("category", "")
-    paid_for_other = request.args.get("paid_for_other", "0")
-    payee_name = request.args.get("payee_name", "")
     return render_template(
         "add.html",
         today=date.today().isoformat(),
-        category=category,
-        paid_for_other=paid_for_other,
-        payee_name=payee_name,
+        category=request.args.get("category", ""),
+        paid_for_other=request.args.get("paid_for_other", "0"),
+        payee_name=request.args.get("payee_name", ""),
     )
 
 
+# ---------------- Edit Expense ----------------
 @app.route("/edit/<int:expense_id>", methods=["GET", "POST"])
 def edit_expense(expense_id):
     e = Expense.query.get_or_404(expense_id)
@@ -157,6 +219,7 @@ def edit_expense(expense_id):
     return render_template("edit.html", e=e)
 
 
+# ---------------- Delete Expense ----------------
 @app.route("/delete/<int:expense_id>", methods=["POST"])
 def delete_expense(expense_id):
     e = Expense.query.get_or_404(expense_id)
@@ -166,7 +229,6 @@ def delete_expense(expense_id):
     return redirect(url_for("index"))
 
 
-# ----------------- Run (local dev) -----------------
+# ---------------- Local Run ----------------
 if __name__ == "__main__":
-    # For local development only.
     app.run(debug=True)
